@@ -13,6 +13,8 @@ DOCUMENTATION = """
     - Nikhil Singh Baliyan (@nikkytub)
     - Sander Steffann (@steffann)
     - Douglas Heriot (@DouglasHeriot)
+    - Alberto Solaro (@AlbertoSolaro)
+    - Giulio Coa (@giulio-coa)
   short_description: Nautobot inventory source
   description:
     - Get inventory hosts from Nautobot
@@ -151,6 +153,8 @@ DOCUMENTATION = """
         - is_virtual
         - services
         - status
+        - secret
+        - secrets
       default: []
     group_names_raw:
       description: Will not add the group_by choice name to the group names
@@ -219,6 +223,12 @@ DOCUMENTATION = """
         - If True, allows for potentially unsafe variables to be returned as-is in the inventory.
       default: False
       type: boolean
+    include_relationships:
+      description:
+        - If True, it adds the relationships of a resourse in host vars.
+      default: False
+      type: boolean
+      version_added: "1.0.0"
 """
 
 EXAMPLES = """
@@ -377,6 +387,25 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
 
         # Handle pagination
         while api_url:
+            if (
+                self.include_relationships
+                or self.fetch_all
+            ) and 'include=relationships' not in api_url:
+                if 'depth=' not in api_url:
+                    if '?' not in api_url:
+                        api_url += '?'
+                    else:
+                        api_url += '&'
+
+                    api_url += 'depth=1'
+
+                if '?' not in api_url:
+                    api_url += '?'
+                else:
+                    api_url += '&'
+
+                api_url += 'include=relationships'
+
             api_output = self._fetch_information(api_url)
             resources.extend(api_output["results"])
             api_url = api_output["next"]
@@ -441,6 +470,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
             self._pluralize_group_by("rack"): self.extract_rack,
             "rack_group": self.extract_rack_group,
             "rack_role": self.extract_rack_role,
+            'relationships': self.extract_relationships,
+            self._pluralize_group_by('secret'): self.extract_secrets,
             self._pluralize_group_by("tag"): self.extract_tags,
             self._pluralize_group_by("role"): self.extract_device_role,
             self._pluralize_group_by("platform"): self.extract_platform,
@@ -465,6 +496,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
             "tenant": "tenants",
             "rack": "racks",
             "tag": "tags",
+            "secret": "secrets",
             "role": "device_roles",
             "platform": "platforms",
             "device_type": "device_types",
@@ -565,6 +597,27 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
             object_lookup=self.rack_groups_lookup,
             object_parent_lookup=self.rack_group_parent_lookup,
         )
+
+    def extract_relationships(self, host):
+        return host.get('relationships')
+
+    def extract_secrets(self, host):
+        return (
+            (
+                (
+                    (
+                        (
+                            (
+                                host.get('relationships') or {}
+                            ).get('secret_group_on_vm') or {}
+                        ).get('source') or {}
+                    ).get('objects') or [
+                        {},
+                    ]
+                )[0]
+            )
+            or host.get('secrets_group') or {}
+        ).get('display') or ''
 
     def extract_rack_role(self, host):
         try:
@@ -1445,6 +1498,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
         self.dns_name = self.get_option("dns_name")
         self.ansible_host_dns_name = self.get_option("ansible_host_dns_name")
         self.wrap_variables = not self.get_option("allow_unsafe")
+        self.include_relationships = self.get_option('include_relationships')
 
         # Compile regular expressions, if any
         self.rename_variables = self.parse_rename_variables(self.get_option("rename_variables"))
