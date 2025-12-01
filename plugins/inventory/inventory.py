@@ -15,6 +15,8 @@ DOCUMENTATION = """
     - Douglas Heriot (@DouglasHeriot)
     - Alberto Solaro (@AlbertoSolaro)
     - Giulio Coa (@giulio-coa)
+    - Alberto Solaro (@AlbertoSolaro)
+    - Giulio Coa (@giulio-coa)
   short_description: Nautobot inventory source
   description:
     - Get inventory hosts from Nautobot
@@ -153,6 +155,8 @@ DOCUMENTATION = """
         - is_virtual
         - services
         - status
+        - secret
+        - secrets
       default: []
     group_names_raw:
       description: Will not add the group_by choice name to the group names
@@ -469,6 +473,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
             "rack_group": self.extract_rack_group,
             "rack_role": self.extract_rack_role,
             'relationships': self.extract_relationships,
+            self._pluralize_group_by('secret'): self.extract_secrets,
             self._pluralize_group_by("tag"): self.extract_tags,
             self._pluralize_group_by("role"): self.extract_device_role,
             self._pluralize_group_by("platform"): self.extract_platform,
@@ -493,6 +498,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
             "tenant": "tenants",
             "rack": "racks",
             "tag": "tags",
+            "secret": "secrets",
             "role": "device_roles",
             "platform": "platforms",
             "device_type": "device_types",
@@ -596,6 +602,24 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
 
     def extract_relationships(self, host):
         return host.get('relationships')
+
+    def extract_secrets(self, host):
+        return (
+            (
+                (
+                    (
+                        (
+                            (
+                                host.get('relationships') or {}
+                            ).get('secret_group_on_vm') or {}
+                        ).get('source') or {}
+                    ).get('objects') or [
+                        {},
+                    ]
+                )[0]
+            )
+            or host.get('secrets_group') or {}
+        ).get('display') or ''
 
     def extract_rack_role(self, host):
         try:
