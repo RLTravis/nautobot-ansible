@@ -15,8 +15,6 @@ DOCUMENTATION = """
     - Douglas Heriot (@DouglasHeriot)
     - Alberto Solaro (@AlbertoSolaro)
     - Giulio Coa (@giulio-coa)
-    - Alberto Solaro (@AlbertoSolaro)
-    - Giulio Coa (@giulio-coa)
   short_description: Nautobot inventory source
   description:
     - Get inventory hosts from Nautobot
